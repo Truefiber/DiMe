@@ -68,7 +68,8 @@ public class ClientConnection extends Thread {
 
     }
 
-    private void sendMessageToClient(String ownMessage) {
+    //Server communication with client
+    public void sendMessageToClient(String ownMessage) {
         try {
             messageOut.writeObject("Server: " + ownMessage + "\n");
             messageOut.flush();
@@ -77,6 +78,7 @@ public class ClientConnection extends Thread {
             e.printStackTrace();
         }
     }
+
 
     private String getMessage() throws IOException{
         String incomingMessage = "";
@@ -98,11 +100,12 @@ public class ClientConnection extends Thread {
 
 
 
-            while (!message.equals("Exit") && !this.isInterrupted()) {
+            while (!this.isInterrupted()) {
                 message = getMessage();
 
 
                 if (message.length() >= 6 && message.substring(0, 6).equals("server")) {
+                    log.info("Chat Server");
                     serviceMessage(message);
                 } else {
                     sendMessage(message);
@@ -118,6 +121,7 @@ public class ClientConnection extends Thread {
         return messageOut;
     }
 
+    //Sending message to send list
     private void sendMessage(String outMessage){
         if (connectedToClients.size() == 0) {
             if (!socket.isClosed()) {
@@ -143,16 +147,22 @@ public class ClientConnection extends Thread {
 
     }
 
-    private void sendListOfClients() {
+    public void sendListOfClients() {
         log.info("sendListOfClients");
         Set<String> listOfClients = new HashSet<String>(server.connectedClientsNames());
         listOfClients.remove(clientName);
-        sendMessageToClient("List of clients:");
-        for (String client : listOfClients) {
-            sendMessageToClient(client);
+
+        String[] clients = new String[listOfClients.size()];
+        listOfClients.toArray(clients);
+        try {
+            messageOut.writeObject(clients);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
+//
     }
 
+    //Add participant to send list
     private void addParticipantByName(String name) {
         ClientConnection client = server.getClientByName(name);
 
@@ -163,6 +173,7 @@ public class ClientConnection extends Thread {
 
         log.info("Add " + client);
         connectedToClients.add(client);
+        sendMessageToClient(name + " added to send list");
 
 
     }
@@ -191,8 +202,18 @@ public class ClientConnection extends Thread {
             addParticipantByName(message.substring(11));
         } else if (message.contains("list")) {
             sendListOfClients();
+        } else if (message.contains("exit")) {
+            this.interrupt();
+        } else if (message.contains("delete")) {
+            log.info("Delete " + message);
+            removeParticipantByName(message.substring(14));
         }
 
+    }
+
+    private void removeParticipantByName(String user) {
+
+        connectedToClients.remove(server.getClientByName(user));
     }
 
 }

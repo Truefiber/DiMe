@@ -48,9 +48,10 @@ public class DimeServer {
 
     }
 
-    public void addClient(ClientConnection client) {
+    public synchronized void addClient(ClientConnection client) {
 
         mapOfConnectedClients.put(client.getClientName(), client);
+        updateListOfClients();
         log.debug("Added client " + client.getClientName());
 
     }
@@ -66,14 +67,17 @@ public class DimeServer {
 
     //Remove this client from connected clients and ensure other clients will not send anything to
     // this client
-    public void removeByName(String name) {
+    public synchronized void removeByName(String name) {
 
         ClientConnection deletedClient = mapOfConnectedClients.remove(name);
 
         for (Map.Entry<String, ClientConnection> entry : mapOfConnectedClients.entrySet()) {
             ClientConnection nextClient = entry.getValue();
+            nextClient.sendListOfClients();
             List<ClientConnection> list = nextClient.getConnectedClients();
-            list.remove(deletedClient);
+            if (list.remove(deletedClient)) {
+                nextClient.sendMessageToClient(deletedClient.getClientName() + " disconnected");
+            }
 
         }
 
@@ -86,6 +90,14 @@ public class DimeServer {
         connection = server.accept();
         new ClientConnection(connection, this).start();
 
+    }
+
+    private void updateListOfClients() {
+        for (Map.Entry<String, ClientConnection> entry : mapOfConnectedClients.entrySet()) {
+            ClientConnection nextClient = entry.getValue();
+            nextClient.sendListOfClients();
+
+        }
     }
 
 
