@@ -184,7 +184,6 @@ public class ClientConnection extends Thread {
             messageIn.close();
             messageOut.close();
             socket.close();
-            sendMessage(clientName + " disconnected");
             server.removeByName(clientName);
 
 
