@@ -130,6 +130,8 @@ public class ClientConnection extends Thread {
             return;
         }
 
+        server.addMessageToDB(clientName, outMessage);
+
 
 
         for (ClientConnection client : connectedToClients) {
@@ -174,6 +176,8 @@ public class ClientConnection extends Thread {
         log.info("Add " + client);
         connectedToClients.add(client);
         sendMessageToClient(name + " added to send list");
+        server.addClientConnectionChangeToDB(clientName, name, DBManager.CLIENT_SENDTO_ADD);
+
 
 
     }
@@ -199,8 +203,7 @@ public class ClientConnection extends Thread {
     private void serviceMessage(String message) {
         if (message.contains("add")) {
             addParticipantByName(message.substring(11));
-        } else if (message.contains("list")) {
-            sendListOfClients();
+
         } else if (message.contains("exit")) {
             this.interrupt();
         } else if (message.contains("delete")) {
@@ -213,6 +216,7 @@ public class ClientConnection extends Thread {
     private void removeParticipantByName(String user) {
 
         connectedToClients.remove(server.getClientByName(user));
+        server.addClientConnectionChangeToDB(clientName, user, DBManager.CLIENT_SENDTO_DELETED);
     }
 
 }

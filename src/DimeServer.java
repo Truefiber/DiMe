@@ -1,14 +1,15 @@
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.sql.Statement;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 /**
  * Created by Gennadiy on 27.07.2014.
@@ -16,8 +17,11 @@ import java.util.Set;
 public class DimeServer {
 
 
-    private ObjectOutputStream messageOutput;
-    private ObjectInputStream messageInput;
+    private BlockingQueue<String> insertQueryQueue = new ArrayBlockingQueue<String>(1000);
+    private Statement dimeStatement;
+
+    private InsertExecutorThread insertThread;
+
     private ServerSocket server;
     private Socket connection;
 
@@ -32,6 +36,10 @@ public class DimeServer {
 
 
         try{
+
+            dimeStatement = DBManager.getDBStatement();
+            insertThread = new InsertExecutorThread(insertQueryQueue, dimeStatement);
+            insertThread.start();
             server = new ServerSocket(portNumber, 100);
             log.info("Server started");
             while (true) {
@@ -52,7 +60,10 @@ public class DimeServer {
 
         mapOfConnectedClients.put(client.getClientName(), client);
         updateListOfClients();
-        log.debug("Added client " + client.getClientName());
+        log.info("Added client " + client.getClientName());
+
+        insertQueryQueue.add(DBManager.getServerInsert(client.getClientName(),
+                DBManager.SERVER_CLIENT_JOINED));
 
     }
 
@@ -70,6 +81,9 @@ public class DimeServer {
     public synchronized void removeByName(String name) {
 
         ClientConnection deletedClient = mapOfConnectedClients.remove(name);
+
+        insertQueryQueue.add(DBManager.getServerInsert(name,
+                DBManager.SERVER_CLIENT_LEFT));
 
         for (Map.Entry<String, ClientConnection> entry : mapOfConnectedClients.entrySet()) {
             ClientConnection nextClient = entry.getValue();
@@ -99,6 +113,30 @@ public class DimeServer {
 
         }
     }
+
+    //Update DB with changes in SendTo list of client
+    public void addClientConnectionChangeToDB(String client, String sendTo,
+                                             boolean isAdded) {
+
+        insertQueryQueue.add(DBManager.getClientInsert(client, sendTo,
+                isAdded));
+
+
+    }
+
+    //Add every outgoing message to db except service message
+    //If sendto list is empty, message as considered as not sent and will not be inserted in db
+    public void addMessageToDB(String client, String message) {
+
+        insertQueryQueue.add(DBManager.getMessageInsert(client, message));
+
+    }
+
+
+
+
+
+
 
 
 
